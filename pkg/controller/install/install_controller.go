@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -71,6 +72,7 @@ func newReconciler(mgr manager.Manager, m mf.Manifest) reconcile.Reconciler {
 		client:   mgr.GetClient(),
 		scheme:   mgr.GetScheme(),
 		manifest: m,
+		config:   mgr.GetConfig(),
 	}
 }
 
@@ -119,6 +121,7 @@ type ReconcileInstall struct {
 	client   client.Client
 	scheme   *runtime.Scheme
 	manifest mf.Manifest
+	config   *rest.Config
 }
 
 // Reconcile reads that state of the cluster for a Install object and makes changes based on the state read
@@ -176,12 +179,19 @@ func (r *ReconcileInstall) install(instance *tektonv1alpha1.Install) error {
 	tfs := []mf.Transformer{
 		mf.InjectOwner(instance),
 	}
-
 	err := r.manifest.Transform(tfs...)
 	if err != nil {
 		return err
 	}
-	return r.manifest.ApplyAll()
+	rc := r.manifest.ApplyAll()
+
+	for _, path := range instance.Spec.AddOns {
+		log.Info("config path: " + path)
+		extension := mf.NewYamlManifest(filepath.Join("deploy", "resources", path), true, r.config)
+		extension.Filter(filters...)
+		extension.ApplyAll()
+	}
+	return rc
 }
 
 func isUptodate(instance *tektonv1alpha1.Install) bool {
