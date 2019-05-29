@@ -183,17 +183,23 @@ func (r *ReconcileInstall) install(instance *tektonv1alpha1.Install) error {
 	if err != nil {
 		return err
 	}
-	rc := r.manifest.ApplyAll()
+	err = r.manifest.ApplyAll()
+	if err != nil {
+		return err
+	}
 
 	for _, path := range instance.Spec.AddOns {
-		extension := mf.NewYamlManifest(filepath.Join("deploy", "resources", path), true, r.config)
-		extension.Filter(filters...)
-		rc = extension.ApplyAll()
-		if rc != nil {
-			return rc
+		extension, err := mf.NewManifest(filepath.Join("deploy", "resources", path), true, r.client)
+		if err != nil {
+			return err
+		}
+		extension.Transform(tfs...)
+		err = extension.ApplyAll()
+		if err != nil {
+			return err
 		}
 	}
-	return rc
+	return nil
 }
 
 func isUptodate(instance *tektonv1alpha1.Install) bool {
