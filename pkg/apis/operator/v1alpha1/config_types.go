@@ -9,6 +9,8 @@ import (
 type ConfigSpec struct {
 	// namespace where OpenShift pipelines will be installed
 	TargetNamespace string `json:"targetNamespace"`
+	// list of addon names to be installed with base
+	AddOns []string  `json:"addons,omitempty"`
 }
 
 // ConfigStatus defines the observed state of Config
