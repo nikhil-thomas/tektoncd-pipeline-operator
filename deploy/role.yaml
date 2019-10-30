@@ -127,6 +127,7 @@ rules:
   - operator.tekton.dev
   resources:
   - '*'
+  - tektonlibs
   verbs:
   - '*'
 - apiGroups:
