@@ -13,7 +13,7 @@ type TektonLibSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-	TargetNamespaces []string `json:"targetnamespaces,omitempty"`
+	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 }
 
 // TektonLibStatus defines the observed state of TektonLib

@@ -2,16 +2,16 @@ package tektonlib
 
 import (
 	"context"
+	"path/filepath"
 
+	mf "github.com/jcrossley3/manifestival"
 	operatorv1alpha1 "github.com/tektoncd/operator/pkg/apis/operator/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -99,33 +99,55 @@ func (r *ReconcileTektonLib) Reconcile(request reconcile.Request) (reconcile.Res
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	defaultTaskPath := filepath.Join("deploy", "resources", "default_tasks")
+	manifest, err := mf.NewManifest(defaultTaskPath, true, r.client)
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set TektonLib instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
+	reqLogger.Info("Namespaces", "Namepsaces", instance.Spec.TargetNamespaces)
+
+	for _, ns := range instance.Spec.TargetNamespaces {
+		tfs := []mf.Transformer{
+			mf.InjectOwner(instance),
+			mf.InjectNamespace(ns),
+		}
+
+		if err := manifest.Transform(tfs...); err != nil {
 			return reconcile.Result{}, err
 		}
 
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
-		return reconcile.Result{}, err
+		if err := manifest.ApplyAll(); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
-
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	//// Define a new Pod object
+	//pod := newPodForCR(instance)
+	//
+	//// Set TektonLib instance as the owner and controller
+	//if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
+	//	return reconcile.Result{}, err
+	//}
+	//
+	//// Check if this Pod already exists
+	//found := &corev1.Pod{}
+	//err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
+	//if err != nil && errors.IsNotFound(err) {
+	//	reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
+	//	err = r.client.Create(context.TODO(), pod)
+	//	if err != nil {
+	//		return reconcile.Result{}, err
+	//	}
+	//
+	//	// Pod created successfully - don't requeue
+	//	return reconcile.Result{}, nil
+	//} else if err != nil {
+	//	return reconcile.Result{}, err
+	//}
+	//
+	//// Pod already exists - don't requeue
+	//reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
 	return reconcile.Result{}, nil
 }
 
