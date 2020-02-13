@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tektoncd/operator/pkg/utils/resource"
+
 	"github.com/go-logr/logr"
 	mf "github.com/jcrossley3/manifestival"
 	sec "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
@@ -356,6 +358,16 @@ func (r *ReconcileConfig) applyNonRedHatResources(req reconcile.Request, cfg *op
 		transform.InjectLabel(flag.LabelTaskProviderType, flag.TaskProviderTypeCommunity, true),
 	}
 	if err := transformManifest(cfg, &r.nonRedHatResources, addnTfrms...); err != nil {
+		log.Error(err, "failed to apply manifest transformations on pipeline-addons")
+		// ignoring failure to update
+		_ = r.updateStatus(cfg, op.ConfigCondition{
+			Code:    op.NonRedHatResourcesError,
+			Details: err.Error(),
+			Version: flag.TektonVersion})
+		return reconcile.Result{}, err
+	}
+
+	if err := resource.AddVersionNamedResources(&r.nonRedHatResources.Resources, flag.TektonVersion); err != nil {
 		log.Error(err, "failed to apply manifest transformations on pipeline-addons")
 		// ignoring failure to update
 		_ = r.updateStatus(cfg, op.ConfigCondition{
